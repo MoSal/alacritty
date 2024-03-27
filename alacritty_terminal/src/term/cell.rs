@@ -38,7 +38,7 @@ bitflags! {
 
 #[cfg(feature = "bidi_draft")]
 bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub(super) struct BidiFlags: u8 {
         /// Set with:
@@ -219,6 +219,9 @@ pub struct CellExtra {
     underline_color: Option<Color>,
 
     hyperlink: Option<Hyperlink>,
+
+    #[cfg(feature = "bidi_draft")]
+    pub(super) bidi_flags: BidiFlags,
 }
 
 /// Content and attributes of a single cell in the terminal grid.
@@ -229,8 +232,6 @@ pub struct Cell {
     pub fg: Color,
     pub bg: Color,
     pub flags: Flags,
-    #[cfg(feature = "bidi_draft")]
-    pub(super) bidi_flags: BidiFlags,
     pub extra: Option<Arc<CellExtra>>,
 }
 
@@ -242,8 +243,6 @@ impl Default for Cell {
             bg: Color::Named(NamedColor::Background),
             fg: Color::Named(NamedColor::Foreground),
             flags: Flags::empty(),
-            #[cfg(feature = "bidi_draft")]
-            bidi_flags: BidiFlags::empty(),
             extra: None,
         }
     }
@@ -319,9 +318,48 @@ impl Cell {
 
 #[cfg(feature = "bidi_draft")]
 impl Cell {
+    pub(super) fn remove_bidi_flag(&mut self, bidi_flag: BidiFlags) {
+        self.extra.as_mut()
+            .map(|extra| Arc::make_mut(extra).bidi_flags.remove(bidi_flag));
+        let is_default_inner = self.extra
+            .as_deref()
+            .map(|extra| *extra == Default::default())
+            .unwrap_or(false);
+        if is_default_inner {
+            self.extra = None;
+        }
+    }
+
+    pub(super) fn insert_bidi_flag(&mut self, bidi_flag: BidiFlags) {
+        if bidi_flag.is_empty() && self.extra.is_none() {
+            return;
+        }
+
+        let extra = self.extra.get_or_insert(Default::default());
+        Arc::make_mut(extra).bidi_flags.insert(bidi_flag);
+    }
+
+    #[inline]
+    pub(super) fn set_bidi_flags(&mut self, bidi_flags: BidiFlags) {
+        if bidi_flags.is_empty() && self.extra.is_none() {
+            return;
+        }
+
+        let extra = self.extra.get_or_insert(Default::default());
+        Arc::make_mut(extra).bidi_flags = bidi_flags;
+    }
+
+    #[inline]
+    pub(super) fn bidi_flags(&self) -> BidiFlags {
+        self.extra
+            .as_ref()
+            .map(|extra| extra.bidi_flags)
+            .unwrap_or_default()
+    }
+
     #[inline]
     pub fn bidi_mode(&self) -> BidiMode {
-        let bidi_flags = self.bidi_flags;
+        let bidi_flags = self.bidi_flags();
         let dir = if !bidi_flags.contains(BidiFlags::NON_DEFAULT_PARA_DIR) {
             BidiDir::Default
         } else if bidi_flags.contains(BidiFlags::RTL_PARA_DIR) {
@@ -341,7 +379,7 @@ impl Cell {
 
     #[inline]
     pub fn bidi_box_mirroring(&self) -> bool {
-        self.bidi_flags.contains(BidiFlags::BOX_MIRRORING)
+        self.bidi_flags().contains(BidiFlags::BOX_MIRRORING)
     }
 }
 
