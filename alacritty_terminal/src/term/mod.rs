@@ -1027,11 +1027,6 @@ impl<T> Term<T> {
         cursor_cell.bg = bg;
         cursor_cell.flags = flags;
         cursor_cell.extra = extra;
-
-        #[cfg(feature = "bidi_draft")]
-        {
-            cursor_cell.set_bidi_flags(bidi_flags);
-        }
     }
 
     #[inline]
@@ -3411,7 +3406,7 @@ mod bidi_tests {
     fn line_match(term: &Term<VoidListener>, l: L, s: impl Into<String>) {
         let s = s.into();
         let text = term.bounds_to_string(P::new(l, C(0)), P::new(l, C(term.columns())));
-        assert_eq!(text, s.repeat(term.columns() / s.chars().count()));
+        assert_eq!(text, s.repeat(text.len() / s.chars().count()));
     }
 
     #[test]
@@ -3659,6 +3654,32 @@ mod bidi_tests {
         line_match(&term, L(17), "ED");
         assert_eq!(term.grid[L(17)][C(0)].bidi_mode(), BidiMode::Explicit {
             forced_dir: BidiDir::Default
+        });
+    }
+
+    #[test]
+    fn no_reset() {
+        let size = TermSize::new(2, 1);
+        let mut term = Term::new(Config::default(), &size, VoidListener);
+
+        term.set_scp(ScpCharPath::RTL, ScpUpdateMode::ImplementationDependant);
+
+        // Don't reset on underline color reset
+        term.terminal_attribute(Attr::UnderlineColor(None));
+        term.input('U');
+
+        // Don't reset on hyperlink reset
+        term.set_hyperlink(None);
+        term.input('H');
+
+        line_match(&term, L(0), "UH");
+
+        assert_eq!(term.grid[L(0)][C(0)].bidi_mode(), BidiMode::Implicit {
+            para_dir: BidiDir::RTL
+        });
+
+        assert_eq!(term.grid[L(0)][C(1)].bidi_mode(), BidiMode::Implicit {
+            para_dir: BidiDir::RTL
         });
     }
 

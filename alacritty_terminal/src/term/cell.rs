@@ -274,13 +274,19 @@ impl Cell {
 
     /// Set underline color on the cell.
     pub fn set_underline_color(&mut self, color: Option<Color>) {
-        // If we reset color and we don't have zerowidth we should drop extra storage.
-        if color.is_none()
-            && self
-                .extra
-                .as_ref()
-                .map_or(true, |extra| extra.zerowidth.is_empty() && extra.hyperlink.is_none())
-        {
+        #[cfg(feature = "bidi_draft")]
+        let should_drop = color.is_none()
+            && self.extra.as_ref().map_or(true, |extra| {
+                extra.zerowidth.is_empty() && extra.hyperlink.is_none() && extra.bidi_flags == Default::default()
+            });
+
+        #[cfg(not(feature = "bidi_draft"))]
+        let should_drop = color.is_none()
+            && self.extra.as_ref().map_or(true, |extra| {
+                extra.zerowidth.is_empty() && extra.hyperlink.is_none()
+            });
+
+        if should_drop {
             self.extra = None;
         } else {
             let extra = self.extra.get_or_insert(Default::default());
@@ -296,6 +302,13 @@ impl Cell {
 
     /// Set hyperlink.
     pub fn set_hyperlink(&mut self, hyperlink: Option<Hyperlink>) {
+        #[cfg(feature = "bidi_draft")]
+        let should_drop = hyperlink.is_none()
+            && self.extra.as_ref().map_or(true, |extra| {
+                extra.zerowidth.is_empty() && extra.underline_color.is_none() && extra.bidi_flags == Default::default()
+            });
+
+        #[cfg(not(feature = "bidi_draft"))]
         let should_drop = hyperlink.is_none()
             && self.extra.as_ref().map_or(true, |extra| {
                 extra.zerowidth.is_empty() && extra.underline_color.is_none()
