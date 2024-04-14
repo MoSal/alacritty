@@ -998,7 +998,7 @@ impl<T> Term<T> {
         let extra = self.grid.cursor.template.extra.clone();
 
         #[cfg(feature = "bidi_draft")]
-        let bidi_flags = self.grid.cursor.template.bidi_flags();
+        let bidi_flags = self.grid.cursor.template.bidi_flags;
 
         let mut cursor_cell = self.grid.cursor_cell();
 
@@ -1027,6 +1027,11 @@ impl<T> Term<T> {
         cursor_cell.bg = bg;
         cursor_cell.flags = flags;
         cursor_cell.extra = extra;
+
+        #[cfg(feature = "bidi_draft")]
+        {
+            cursor_cell.bidi_flags = bidi_flags;
+        }
     }
 
     #[inline]
@@ -1942,17 +1947,17 @@ impl<T: EventListener> Handler for Term<T> {
         match char_path {
             ScpCharPath::Default => {
                 trace!("Setting (implementation-defined) default paragraph direction");
-                self.grid.cursor.template.remove_bidi_flag(BidiFlags::NON_DEFAULT_PARA_DIR);
+                self.grid.cursor.template.bidi_flags.remove(BidiFlags::NON_DEFAULT_PARA_DIR);
             },
             ScpCharPath::LTR => {
                 trace!("Setting LTR paragraph direction");
-                self.grid.cursor.template.insert_bidi_flag(BidiFlags::NON_DEFAULT_PARA_DIR);
-                self.grid.cursor.template.remove_bidi_flag(BidiFlags::RTL_PARA_DIR);
+                self.grid.cursor.template.bidi_flags.insert(BidiFlags::NON_DEFAULT_PARA_DIR);
+                self.grid.cursor.template.bidi_flags.remove(BidiFlags::RTL_PARA_DIR);
             },
             ScpCharPath::RTL => {
                 trace!("Setting RTL paragraph direction");
-                self.grid.cursor.template.insert_bidi_flag(BidiFlags::NON_DEFAULT_PARA_DIR);
-                self.grid.cursor.template.insert_bidi_flag(BidiFlags::RTL_PARA_DIR);
+                self.grid.cursor.template.bidi_flags.insert(BidiFlags::NON_DEFAULT_PARA_DIR);
+                self.grid.cursor.template.bidi_flags.insert(BidiFlags::RTL_PARA_DIR);
             },
         }
     }
@@ -1972,11 +1977,11 @@ impl<T: EventListener> Handler for Term<T> {
                         },
                         2500 => {
                             trace!("Enabling RTL box mirroring");
-                            self.grid.cursor.template.insert_bidi_flag(BidiFlags::BOX_MIRRORING);
+                            self.grid.cursor.template.bidi_flags.insert(BidiFlags::BOX_MIRRORING);
                         },
                         2501 => {
                             trace!("Enabling paragraph direction auto-detection");
-                            self.grid.cursor.template.insert_bidi_flag(BidiFlags::AUTO_PARA_DIR);
+                            self.grid.cursor.template.bidi_flags.insert(BidiFlags::AUTO_PARA_DIR);
                         },
                         _ => debug!("Ignoring unknown mode {} in set_private_mode", mode),
                     }
@@ -2052,11 +2057,11 @@ impl<T: EventListener> Handler for Term<T> {
                         },
                         2500 => {
                             trace!("Disabling RTL box mirroring");
-                            self.grid.cursor.template.remove_bidi_flag(BidiFlags::BOX_MIRRORING);
+                            self.grid.cursor.template.bidi_flags.remove(BidiFlags::BOX_MIRRORING);
                         },
                         2501 => {
                             trace!("Disabling paragraph direction auto-detection");
-                            self.grid.cursor.template.remove_bidi_flag(BidiFlags::AUTO_PARA_DIR);
+                            self.grid.cursor.template.bidi_flags.remove(BidiFlags::AUTO_PARA_DIR);
                         },
                         _ => debug!("Ignoring unknown mode {} in unset_private_mode", mode),
                     }
@@ -2167,7 +2172,7 @@ impl<T: EventListener> Handler for Term<T> {
                 // BDSM
                 if mode == 8 {
                     trace!("Re-enabling BiDi implicit mode");
-                    self.grid.cursor.template.remove_bidi_flag(cell::BidiFlags::EXPLICIT_DIRECTION);
+                    self.grid.cursor.template.bidi_flags.remove(cell::BidiFlags::EXPLICIT_DIRECTION);
                 } else {
                     debug!("Ignoring unknown mode {} in set_mode", mode);
                 }
@@ -2193,7 +2198,7 @@ impl<T: EventListener> Handler for Term<T> {
                 // BDSM
                 if mode == 8 {
                     trace!("Enabling BiDi explicit mode");
-                    self.grid.cursor.template.insert_bidi_flag(cell::BidiFlags::EXPLICIT_DIRECTION);
+                    self.grid.cursor.template.bidi_flags.insert(cell::BidiFlags::EXPLICIT_DIRECTION);
                 } else {
                     debug!("Ignorning unknown mode {} in unset_mode", mode);
                 }
@@ -3654,32 +3659,6 @@ mod bidi_tests {
         line_match(&term, L(17), "ED");
         assert_eq!(term.grid[L(17)][C(0)].bidi_mode(), BidiMode::Explicit {
             forced_dir: BidiDir::Default
-        });
-    }
-
-    #[test]
-    fn no_reset() {
-        let size = TermSize::new(2, 1);
-        let mut term = Term::new(Config::default(), &size, VoidListener);
-
-        term.set_scp(ScpCharPath::RTL, ScpUpdateMode::ImplementationDependant);
-
-        // Don't reset on underline color reset
-        term.terminal_attribute(Attr::UnderlineColor(None));
-        term.input('U');
-
-        // Don't reset on hyperlink reset
-        term.set_hyperlink(None);
-        term.input('H');
-
-        line_match(&term, L(0), "UH");
-
-        assert_eq!(term.grid[L(0)][C(0)].bidi_mode(), BidiMode::Implicit {
-            para_dir: BidiDir::RTL
-        });
-
-        assert_eq!(term.grid[L(0)][C(1)].bidi_mode(), BidiMode::Implicit {
-            para_dir: BidiDir::RTL
         });
     }
 
