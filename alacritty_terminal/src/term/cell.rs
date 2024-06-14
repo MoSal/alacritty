@@ -374,7 +374,12 @@ impl GridCell for Cell {
 
     #[inline]
     fn reset(&mut self, template: &Self) {
-        *self = Cell { bg: template.bg, ..Cell::default() };
+        *self = Cell {
+            bg: template.bg,
+            #[cfg(feature = "bidi_draft")]
+            bidi_flags: template.bidi_flags,
+            ..Cell::default()
+        };
     }
 }
 
