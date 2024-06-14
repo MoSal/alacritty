@@ -315,6 +315,16 @@ impl Cell {
     pub fn hyperlink(&self) -> Option<Hyperlink> {
         self.extra.as_ref()?.hyperlink.clone()
     }
+
+    #[inline]
+    pub(super) fn as_blank_with_bg(&self) -> Self {
+        Self {
+            #[cfg(feature = "bidi_draft")]
+            bidi_flags: self.bidi_flags,
+            bg: self.bg,
+            ..Self::default()
+        }
+    }
 }
 
 #[cfg(feature = "bidi_draft")]
@@ -380,13 +390,6 @@ impl GridCell for Cell {
             bidi_flags: template.bidi_flags,
             ..Cell::default()
         };
-    }
-}
-
-impl From<Color> for Cell {
-    #[inline]
-    fn from(color: Color) -> Self {
-        Self { bg: color, ..Cell::default() }
     }
 }
 
